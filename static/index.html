@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <title>FootyWatch</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    body { font-family: system-ui, Arial, sans-serif; margin: 24px; }
+    input, button { font-size: 16px; padding: 8px 12px; margin: 4px; }
+    table { border-collapse: collapse; width: 100%; margin-top: 10px; }
+    th, td { border: 1px solid #ddd; padding: 6px 8px; text-align: start; }
+    tbody tr.highlight { background: #fff3bf; font-weight: 600; }
+    .row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin: 8px 0; }
+    .note { color:#555; font-size: 14px; }
+  </style>
+</head>
+<body>
+  <h1>FootyWatch (Football-Data.org)</h1>
+
+  <!-- מצב ליגה -->
+  <div class="row">
+    <label>שם ליגה:</label>
+    <input id="leagueName" value="English Premier League" style="min-width:260px;" />
+    <label>ימים קדימה:</label>
+    <input id="leagueDays" type="number" value="7" min="1" max="30" style="width:80px;" />
+    <button id="btnLeague">הצג משחקי ליגה</button>
+  </div>
+
+  <!-- מצב קבוצה (בתוך הליגה) -->
+  <div class="row">
+    <label>שם קבוצה (בתוך הליגה):</label>
+    <input id="teamName" placeholder="Arsenal" style="min-width:220px;" />
+    <label>ימים קדימה:</label>
+    <input id="teamDays" type="number" value="7" min="1" max="60" style="width:80px;" />
+    <button id="btnTeam">הצג משחקי קבוצה</button>
+  </div>
+
+  <!-- הדגשה -->
+  <div class="row">
+    <label>הדגש קבוצה בטבלה:</label>
+    <input id="highlight" placeholder="Arsenal / Liverpool / ..." style="min-width:220px;" />
+    <button id="btnApplyHighlight">החל הדגשה</button>
+    <span class="note">טיפ: אפשר לשנות את הטקסט ולהקליק שוב “החל הדגשה”.</span>
+  </div>
+
+  <table id="tbl" style="display:none">
+    <thead>
+      <tr>
+        <th>תאריך/שעה (UTC)</th>
+        <th>בית</th>
+        <th>חוץ</th>
+        <th>ליגה</th>
+        <th>מחזור</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+
+<script>
+let lastData = []; // שומר את מערך המשחקים האחרון שהבאנו כדי לאפשר הדגשה מחדש
+
+const $ = s => document.querySelector(s);
+
+$('#btnLeague').addEventListener('click', async () => {
+  const league = ($('#leagueName').value || '').trim();
+  const days = Math.max(1, Math.min(30, parseInt($('#leagueDays').value || '7', 10)));
+  if (!league) return;
+  const qs = new URLSearchParams({ league_name: league, days: String(days) });
+  const r = await fetch(`/api/fd/league-matches?${qs}`);
+  const data = await r.json();
+  lastData = Array.isArray(data) ? data : [];
+  render(lastData);
+});
+
+$('#btnTeam').addEventListener('click', async () => {
+  const league = ($('#leagueName').value || '').trim();
+  const team = ($('#teamName').value || '').trim();
+  const days = Math.max(1, Math.min(60, parseInt($('#teamDays').value || '7', 10)));
+  if (!league || !team) return;
+  const qs = new URLSearchParams({ league_name: league, team_name: team, days: String(days) });
+  const r = await fetch(`/api/fd/team-matches?${qs}`);
+  const data = await r.json();
+  lastData = Array.isArray(data) ? data : [];
+  render(lastData);
+});
+
+// כפתור הדגשה – מרנדר מחדש עם ההדגשה העדכנית
+$('#btnApplyHighlight').addEventListener('click', () => render(lastData));
+
+function render(list){
+  const tbl = $('#tbl');
+  const tbody = tbl.querySelector('tbody');
+  const highlight = ($('#highlight').value || '').toLowerCase().trim();
+
+  tbody.innerHTML = '';
+  if (!Array.isArray(list) || list.length === 0){
+    tbl.style.display = 'none';
+    return;
+  }
+
+  for (const m of list){
+    const tr = document.createElement('tr');
+    const home = m.home || '';
+    const away = m.away || '';
+    if (highlight && (home.toLowerCase().includes(highlight) || away.toLowerCase().includes(highlight))){
+      tr.classList.add('highlight');
+    }
+    tr.innerHTML = `
+      <td>${m.utcDate || ''}</td>
+      <td>${home}</td>
+      <td>${away}</td>
+      <td>${m.competition || ''}</td>
+      <td>${m.matchday ?? ''}</td>
+    `;
+    tbody.appendChild(tr);
+  }
+  tbl.style.display = 'table';
+}
+</script>
+</body>
+</html>
